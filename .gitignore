@@ -1,0 +1,3 @@
+cjapp/.env
+cjapp/__pycache__/
+restapi/__pycache__/
