@@ -198,7 +198,7 @@ def log_processor(request):
     response = response_format(data)
     return Response({"response":response}, status=status.HTTP_200_OK)
 
-def sort_by_time_stamp(logs):
+def sort_by_time_stamp(logs:list)->list:
     data = []
     for log in logs:
         data.append(log.split(" "))
@@ -218,7 +218,7 @@ def response_format(raw_data):
         response.append(entry)
     return response
 
-def aggregate(cleaned_logs):
+def aggregate(cleaned_logs:list)->list:
     data = {}
     for log in cleaned_logs:
         [key, text] = log
@@ -228,11 +228,11 @@ def aggregate(cleaned_logs):
     return data
 
 
-def transform(logs):
-    result = []
+def transform(logs:list)->list:
+    result:list = []
     for log in logs:
         [_, timestamp, text] = log
-        text = text.rstrip()
+        text:str = text.rstrip()
         timestamp = datetime.utcfromtimestamp(int(int(timestamp)/1000))
         hours, minutes = timestamp.hour, timestamp.minute
         key = ''
@@ -255,20 +255,20 @@ def transform(logs):
     return result
 
 
-def reader(url, timeout):
+def reader(url:str, timeout:int)->str:
     with urllib.request.urlopen(url, timeout=timeout) as conn:
-        data = conn.read()
+        data:str = conn.read()
         data = data.decode('utf-8')
         return data
 
 
-def multi_thread_reader(urls, num_threads):
+def multi_thread_reader(urls:list, num_threads:int)->list:
     """
         Read multiple files through HTTP
     """
     result = []
     with ThreadPoolExecutor(max_workers=min(32, num_threads)) as executor:
-        logs = [executor.submit(reader, url, EXECUTOR_TIMEOUT) for url in urls]
+        logs:list = [executor.submit(reader, url, EXECUTOR_TIMEOUT) for url in urls]
     for log in as_completed(logs):
         result.extend(log.split("\n"))
     result = sorted(result, key=lambda elem:elem[1])
