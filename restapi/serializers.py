@@ -10,7 +10,7 @@ class UserSerializer(ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
-    class Meta(object):
+    class Meta():
         model = User
         fields = ('id', 'username', 'password')
         extra_kwargs = {
@@ -19,7 +19,7 @@ class UserSerializer(ModelSerializer):
 
 
 class CategorySerializer(ModelSerializer):
-    class Meta(object):
+    class Meta():
         model = Category
         fields = '__all__'
 
@@ -33,7 +33,7 @@ class GroupSerializer(ModelSerializer):
 
 
 class UserExpenseSerializer(ModelSerializer):
-    class Meta(object):
+    class Meta():
         model = UserExpense
         fields = ['user', 'amount_owed', 'amount_lent']
 
@@ -97,6 +97,6 @@ class ExpensesSerializer(ModelSerializer):
 
         return attrs
 
-    class Meta(object):
+    class Meta():
         model = Expenses
         fields = '__all__'

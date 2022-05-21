@@ -37,26 +37,26 @@ def balance(request):
     final_balance = {}
     for expense in expenses:
         expense_balances = normalize(expense)
-        for eb in expense_balances:
-            from_user = eb['from_user']
-            to_user = eb['to_user']
+        for expense_balance in expense_balances:
+            from_user = expense_balance['from_user']
+            to_user = expense_balance['to_user']
             if from_user == user.id:
-                final_balance[to_user] = final_balance.get(to_user, 0) - eb['amount']
+                final_balance[to_user] = final_balance.get(to_user, 0) - expense_balance['amount']
             if to_user == user.id:
-                final_balance[from_user] = final_balance.get(from_user, 0) + eb['amount']
-    final_balance = {k: v for k, v in final_balance.items() if v != 0}
+                final_balance[from_user] = final_balance.get(from_user, 0) + expense_balance['amount']
+    final_balance = {user_id: amount for user_id, amount in final_balance.items() if amount != 0}
 
-    response = [{"user": k, "amount": int(v)} for k, v in final_balance.items()]
+    response = [{"user": user_id, "amount": int(amount)} for user_id, amount in final_balance.items()]
     return Response(response, status=200)
 
 
 def normalize(expense):
     user_balances = expense.users.all()
-    dues = {}
+    dues = []
     for user_balance in user_balances:
         dues[user_balance.user] = dues.get(user_balance.user, 0) + user_balance.amount_lent \
                                   - user_balance.amount_owed
-    dues = [(k, v) for k, v in sorted(dues.items(), key=lambda item: item[1])]
+    dues = list(sorted(dues.items(), key=lambda item: item[1]))
     start = 0
     end = len(dues) - 1
     balances = []
@@ -73,19 +73,19 @@ def normalize(expense):
     return balances
 
 
-class user_view_set(ModelViewSet):
+class UserViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = (AllowAny,)
 
 
-class category_view_set(ModelViewSet):
+class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     http_method_names = ['get', 'post']
 
 
-class group_view_set(ModelViewSet):
+class GroupViewSet(ModelViewSet):
     queryset = Groups.objects.all()
     serializer_class = GroupSerializer
 
@@ -162,7 +162,7 @@ class group_view_set(ModelViewSet):
         return Response(balances, status=200)
 
 
-class expenses_view_set(ModelViewSet):
+class ExpenseViewSet(ModelViewSet):
     queryset = Expenses.objects.all()
     serializer_class = ExpensesSerializer
 
@@ -178,7 +178,7 @@ class expenses_view_set(ModelViewSet):
 @api_view(['post'])
 @authentication_classes([])
 @permission_classes([])
-def logProcessor(request):
+def log_processor(request):
     data = request.data
     num_threads = data['parallelFileProcessingCount']
     log_files = data['logFiles']
@@ -188,7 +188,7 @@ def logProcessor(request):
     if len(log_files) == 0:
         return Response({"status": "failure", "reason": "No log files provided in request"},
                         status=status.HTTP_400_BAD_REQUEST)
-    logs = multiThreadedReader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
+    logs = multi_thread_reader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
     sorted_logs = sort_by_time_stamp(logs)
     cleaned = transform(sorted_logs)
     data = aggregate(cleaned)
@@ -236,15 +236,15 @@ def transform(logs):
 
         if minutes >= 45:
             if hours == 23:
-                key = "{:02d}:45-00:00".format(hours)
+                key = f"{hours}:45-00:00"
             else:
-                key = "{:02d}:45-{:02d}:00".format(hours, hours+1)
+                key = f"{hours}:45-{hours+1}:00"
         elif minutes >= 30:
-            key = "{:02d}:30-{:02d}:45".format(hours, hours)
+            key = f"{hours}:30-{hours}:45"
         elif minutes >= 15:
-            key = "{:02d}:15-{:02d}:30".format(hours, hours)
+            key = f"{hours}:15-{hours}:30"
         else:
-            key = "{:02d}:00-{:02d}:15".format(hours, hours)
+            key = f"{hours}:00-{hours}:15"
 
         result.append([key, text])
         print(key)
@@ -257,7 +257,7 @@ def reader(url, timeout):
         return conn.read()
 
 
-def multiThreadedReader(urls, num_threads):
+def multi_thread_reader(urls, num_threads):
     """
         Read multiple files through HTTP
     """
