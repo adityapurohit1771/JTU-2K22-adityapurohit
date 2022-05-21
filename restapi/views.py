@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from asyncio import as_completed
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 import urllib.request
 from datetime import datetime
@@ -18,7 +20,8 @@ from restapi.models import Category, Groups, Expenses, UserExpense
 from restapi.serializers import UserSerializer, CategorySerializer, GroupSerializer, ExpensesSerializer
 from restapi.custom_exception import UnauthorizedUserException
 
-
+#Constants
+EXECUTOR_TIMEOUT = 60
 
 def index(_request):
     return HttpResponse("Hello, world. You're at Rest.")
@@ -254,7 +257,9 @@ def transform(logs):
 
 def reader(url, timeout):
     with urllib.request.urlopen(url, timeout=timeout) as conn:
-        return conn.read()
+        data = conn.read()
+        data = data.decode('utf-8')
+        return data
 
 
 def multi_thread_reader(urls, num_threads):
@@ -262,9 +267,9 @@ def multi_thread_reader(urls, num_threads):
         Read multiple files through HTTP
     """
     result = []
-    for url in urls:
-        data = reader(url, 60)
-        data = data.decode('utf-8')
-        result.extend(data.split("\n"))
+    with ThreadPoolExecutor(max_workers=min(32, num_threads)) as executor:
+        logs = [executor.submit(reader, url, EXECUTOR_TIMEOUT) for url in urls]
+    for log in as_completed(logs):
+        result.extend(log.split("\n"))
     result = sorted(result, key=lambda elem:elem[1])
     return result
