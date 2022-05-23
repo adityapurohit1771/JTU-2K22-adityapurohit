@@ -6,7 +6,7 @@ from decimal import Decimal
 from http.client import HTTPException
 import urllib.request
 from datetime import datetime
-import logging
+from utils.set_logger import logger
 
 from django.http import HttpResponse
 from django.contrib.auth.models import User
@@ -29,15 +29,15 @@ def index(_request):
 
 @api_view(['POST'])
 def logout(request):
-    logging.info(f"Deleting auth_token for {request.user.id}")
+    logger.info(f"Deleting auth_token for {request.user.id}")
     request.user.auth_token.delete()
-    logging.info(f"auth_token deleted. for {request.user.id}")
+    logger.info(f"auth_token deleted. for {request.user.id}")
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
 def balance(request):
-    logging.info("Getting Balances")
+    logger.info("Getting Balances")
     user = request.user
     expenses = Expenses.objects.filter(users__in=user.expenses.all())
     final_balance = {}
@@ -53,12 +53,12 @@ def balance(request):
     final_balance = {user_id: amount for user_id, amount in final_balance.items() if amount != 0}
 
     response = [{"user": user_id, "amount": int(amount)} for user_id, amount in final_balance.items()]
-    logging.info("Balances retured for the request")
+    logger.info("Balances retured for the request")
     return Response(response, status=status.HTTP_200_OK)
 
 
 def normalize(expense):
-    logging.info("Normalising expense")
+    logger.info("Normalising expense")
     user_balances = expense.users.all()
     dues = []
     for user_balance in user_balances:
@@ -78,7 +78,7 @@ def normalize(expense):
             start += 1
         else:
             end -= 1
-    logging.info("Expenses normalised")
+    logger.info("Expenses normalised")
     return balances
 
 
@@ -106,47 +106,47 @@ class GroupViewSet(ModelViewSet):
         return groups
 
     def create(self, request, *args, **kwargs):
-        logging.info("Creating New User")
+        logger.info("Creating New User")
         try:
             user = self.request.user
             data = self.request.data
         except:
-            logging.error("Failed to fetch user credentials")
+            logger.error("Failed to fetch user credentials")
             return Response({"status": "failure", "reason": "Invalid user credentials"},
             status=status.HTTP_400_BAD_REQUEST)
         group = Groups(**data)
         group.save()
         group.members.add(user)
         serializer = self.get_serializer(group)
-        logging.info("User created")
+        logger.info("User created")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['put'], detail=True)
     def members(self, request, pk=None):
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
-            logging.error("User not authorized")
+            logger.error("User not authorized")
             raise UnauthorizedUserException()
         body = request.data
         if body.get('add', None) is not None and body['add'].get('user_ids', None) is not None:
             added_ids = body['add']['user_ids']
             for user_id in added_ids:
                 group.members.add(user_id)
-                logging.info(f"User {user_id} added.")
+                logger.info(f"User {user_id} added.")
         if body.get('remove', None) is not None and body['remove'].get('user_ids', None) is not None:
             removed_ids = body['remove']['user_ids']
             for user_id in removed_ids:
                 group.members.remove(user_id)
-                logging.info(f"User {user_id} removed.")
+                logger.info(f"User {user_id} removed.")
         group.save()
-        logging.info("Group updated")
+        logger.info("Group updated")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['get'], detail=True)
     def expenses(self, _request, pk=None):
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
-            logging.error("User not authorized")
+            logger.error("User not authorized")
             raise UnauthorizedUserException()
         expenses = group.expenses_set
         serializer = ExpensesSerializer(expenses, many=True)
@@ -156,22 +156,22 @@ class GroupViewSet(ModelViewSet):
     def balances(self, _request, pk=None):
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
-            logging.error("User not authorized")
+            logger.error("User not authorized")
             raise UnauthorizedUserException()
         expenses = Expenses.objects.filter(group=group)
         dues = {}
-        logging.info("Calculating dues")
+        logger.info("Calculating dues")
         for expense in expenses:
             user_balances = UserExpense.objects.filter(expense=expense)
             for user_balance in user_balances:
                 dues[user_balance.user] = dues.get(user_balance.user, 0) + user_balance.amount_lent \
                                           - user_balance.amount_owed
         dues = list(sorted(dues.items(), key=lambda item: item[1]))
-        logging.info("Dues Calculated")
+        logger.info("Dues Calculated")
         start = 0
         end = len(dues) - 1
         balances = []
-        logging.info("Creating Balance Sheet")
+        logger.info("Creating Balance Sheet")
         while start < end:
             amount = min(abs(dues[start][1]), abs(dues[end][1]))
             amount = Decimal(amount).quantize(Decimal(10)**-2)
@@ -184,7 +184,7 @@ class GroupViewSet(ModelViewSet):
             else:
                 end -= 1
         
-        logging.info("Balance Sheet Created")
+        logger.info("Balance Sheet Created")
 
         return Response(balances, status=status.HTTP_200_OK)
 
@@ -206,13 +206,13 @@ class ExpenseViewSet(ModelViewSet):
 @authentication_classes([])
 @permission_classes([])
 def log_processor(request):
-    logging.info("proccesing log data")
+    logger.info("proccesing log data")
     try:
         data = request.data
         num_threads = data['parallelFileProcessingCount']
         log_files = data['logFiles']
     except:
-        logging.error("Failed to fetch data for log proccesing")
+        logger.error("Failed to fetch data for log proccesing")
         return Response({"status": "failure", "reason": "Invalid user credentials"},
         status=status.HTTP_400_BAD_REQUEST)
         
@@ -225,14 +225,14 @@ def log_processor(request):
     try:
         logs = multi_thread_reader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
     except:
-        logging.error("unable to fetch logs through multi_thread_reader")
+        logger.error("unable to fetch logs through multi_thread_reader")
         return Response({"status": "failure", "reason": "multi_thread_reader not working"},
         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     sorted_logs = sort_by_time_stamp(logs)
     cleaned = transform(sorted_logs)
     data = aggregate(cleaned)
     response = response_format(data)
-    logging.info("Log proccessing done.")
+    logger.info("Log proccessing done.")
     return Response({"response":response}, status=status.HTTP_200_OK)
 
 def sort_by_time_stamp(logs:list)->list:
