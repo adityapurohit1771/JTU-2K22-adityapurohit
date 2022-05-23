@@ -21,9 +21,7 @@ from rest_framework import status
 from restapi.models import Category, Groups, Expenses, UserExpense
 from restapi.serializers import UserSerializer, CategorySerializer, GroupSerializer, ExpensesSerializer
 from restapi.custom_exception import UnauthorizedUserException
-
-#Constants
-EXECUTOR_TIMEOUT = 60
+import restapi.views_constants as consts
 
 def index(_request):
     return HttpResponse("Hello, world. You're at Rest.")
@@ -307,7 +305,7 @@ def multi_thread_reader(urls:list, num_threads:int)->list:
     """
     result = []
     with ThreadPoolExecutor(max_workers=min(32, num_threads)) as executor:
-        logs:list = [executor.submit(reader, url, EXECUTOR_TIMEOUT) for url in urls]
+        logs:list = [executor.submit(reader, url, consts.EXECUTOR_TIMEOUT) for url in urls]
     for log in as_completed(logs):
         result.extend(log.split("\n"))
     result = sorted(result, key=lambda elem:elem[1])
