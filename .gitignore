@@ -1,3 +1,2 @@
 cjapp/.env
-cjapp/__pycache__/
-restapi/__pycache__/
+**/__pycache__/
