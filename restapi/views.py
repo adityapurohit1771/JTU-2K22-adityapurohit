@@ -24,11 +24,17 @@ from restapi.custom_exception import UnauthorizedUserException
 import restapi.views_constants as consts
 
 def index(_request):
+    '''
+    Index Page
+    '''
     return HttpResponse("Hello, world. You're at Rest.")
 
 
 @api_view(['POST'])
 def logout(request):
+    '''
+    Logs Out the User
+    '''
     logger.info(f"Deleting auth_token for {request.user.id}")
     request.user.auth_token.delete()
     logger.info(f"auth_token deleted. for {request.user.id}")
@@ -37,6 +43,9 @@ def logout(request):
 
 @api_view(['GET'])
 def balance(request):
+    '''
+    Returns balances for required users
+    '''
     logger.info("Getting Balances")
     user = request.user
     expenses = Expenses.objects.filter(users__in=user.expenses.all())
@@ -58,6 +67,9 @@ def balance(request):
 
 
 def normalize(expense):
+    '''
+        Normalises the expenses and returns normalised expenses
+    '''
     logger.info("Normalising expense")
     user_balances = expense.users.all()
     dues = []
@@ -106,6 +118,9 @@ class GroupViewSet(ModelViewSet):
         return groups
 
     def create(self, request, *args, **kwargs):
+        '''
+        Creates a new user or group
+        '''
         logger.info("Creating New User")
         try:
             user = self.request.user
@@ -123,6 +138,9 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['put'], detail=True)
     def members(self, request, pk=None):
+        '''
+        Updates the member list in a group
+        '''
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             logger.error("User not authorized")
@@ -144,6 +162,9 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['get'], detail=True)
     def expenses(self, _request, pk=None):
+        '''
+        Returns expenses of group
+        '''
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             logger.error("User not authorized")
@@ -154,36 +175,15 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['get'], detail=True)
     def balances(self, _request, pk=None):
+        '''
+        Returns Balances of the user
+        '''
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             logger.error("User not authorized")
             raise UnauthorizedUserException()
         expenses = Expenses.objects.filter(group=group)
-        dues = {}
-        logger.info("Calculating dues")
-        for expense in expenses:
-            user_balances = UserExpense.objects.filter(expense=expense)
-            for user_balance in user_balances:
-                dues[user_balance.user] = dues.get(user_balance.user, 0) + user_balance.amount_lent \
-                                          - user_balance.amount_owed
-        dues = list(sorted(dues.items(), key=lambda item: item[1]))
-        logger.info("Dues Calculated")
-        start = 0
-        end = len(dues) - 1
-        balances = []
-        logger.info("Creating Balance Sheet")
-        while start < end:
-            amount = min(abs(dues[start][1]), abs(dues[end][1]))
-            amount = Decimal(amount).quantize(Decimal(10)**-2)
-            user_balance = {"from_user": dues[start][0].id, "to_user": dues[end][0].id, "amount": str(amount)}
-            balances.append(user_balance)
-            dues[start] = (dues[start][0], dues[start][1] + amount)
-            dues[end] = (dues[end][0], dues[end][1] - amount)
-            if dues[start][1] == 0:
-                start += 1
-            else:
-                end -= 1
-        
+        balances=normalize(expenses)
         logger.info("Balance Sheet Created")
 
         return Response(balances, status=status.HTTP_200_OK)
@@ -206,6 +206,9 @@ class ExpenseViewSet(ModelViewSet):
 @authentication_classes([])
 @permission_classes([])
 def log_processor(request):
+    '''
+    Procceses log data from the urls
+    '''
     logger.info("proccesing log data")
     try:
         data = request.data
@@ -236,6 +239,9 @@ def log_processor(request):
     return Response({"response":response}, status=status.HTTP_200_OK)
 
 def sort_by_time_stamp(logs:list)->list:
+    '''
+    Sorts log data by time stamp
+    '''
     data = []
     for log in logs:
         data.append(log.split(" "))
@@ -256,6 +262,9 @@ def response_format(raw_data):
     return response
 
 def aggregate(cleaned_logs:list)->list:
+    '''
+    Aggregate the log data
+    '''
     data = {}
     for log in cleaned_logs:
         [key, text] = log
@@ -266,6 +275,9 @@ def aggregate(cleaned_logs:list)->list:
 
 
 def transform(logs:list)->list:
+    '''
+    Transforms log data by adding timestamp
+    '''
     result:list = []
     for log in logs:
         [_, timestamp, text] = log
